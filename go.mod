@@ -1,3 +1,3 @@
 module github.com/daostas/query_parser
 
-go 1.20
+go 1.23.4
