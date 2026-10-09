@@ -2,41 +2,42 @@ package qp
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 )
 
 type (
-	QueryParam  struct{ Key, Type, Sign, Value string }
+	QueryParam struct {
+		KeyArray []string
+		Type     string
+		Sign     string
+		Value    string
+		OR       []*QueryParam
+	}
+
 	QueryParams []QueryParam
 )
 
-func NewQueryParam(key, _type, sign, value string) QueryParam {
-	return QueryParam{
-		Key:   key,
-		Type:  _type,
-		Sign:  sign,
-		Value: value,
-	}
-}
-
 // String Создает строку для sql запроса из структуры
 func (qp *QueryParam) String() string {
-	return fmt.Sprintf("%s%s %s %s", qp.Key, qp.Type, qp.Sign, qp.Value)
+	return fmt.Sprintf("%s%s %s %s", qp.KeyArray, qp.Type, qp.Sign, qp.Value)
 }
 
 // QueryFormat - Функция, которая формирует структуру по key и value приходящих в query params в запросе в api
 func QueryFormat(key, value string) (qp QueryParam, err error) {
 	key = strings.Trim(key, " ")
+	var keys []string
 	// По умолчанию ставим знак равно
 	sign := "="
 	// Доступные на данный момент функции
-	r := regexp.MustCompile(`\[(>|<|>-|<-|!|<>|~\*|~|!~\*|!~|\+|!\+|!%|%|!:|:|like|not_like|between|not_between|similar_to|not_similar_to)]$`)
+	r := regexp.MustCompile(`^(\w+|\[\s*\w+(?:\s*,\s*\w+)*\s*\])\[(>|<|>-|<-|!|<>|~\*|~|!~\*|!~|\+|!\+|!%|%|!:|:|like|not_like|between|not_between|similar_to|not_similar_to)\]$`)
 	if r.MatchString(key) {
 		matches := r.FindStringSubmatch(key)
 		// Достаем знак, который пришел в query параметрах
-		sign = matches[1]
+		keys = strings.Split(strings.Trim(matches[1], " []"), ",")
+		sign = matches[2]
 		// Убираем найденный знак из ключа
 		key = r.ReplaceAllString(key, "")
 		// Обработка знака на валидные для sql запроса в базу PostgreSql
@@ -64,8 +65,29 @@ func QueryFormat(key, value string) (qp QueryParam, err error) {
 		}
 	}
 
+	values := strings.Split(value, "||")
 	// Обработка всех значений и запись в QueryParam
-	err = qp.FillQueryParam(key, sign, value)
+	err = qp.FillQueryParam(key, keys, sign, values[0])
+	if err != nil {
+		return
+	}
+
+	if len(values) > 1 {
+		for _, value := range values[1:] {
+			arr := strings.SplitN(value, "=", 2)
+			if len(arr) < 2 {
+				err = errors.New("invalid query parameter")
+			}
+
+			q, err := QueryFormat(arr[0], arr[1])
+			if err != nil {
+				return qp, err
+			}
+
+			qp.OR = append(qp.OR, &q)
+		}
+	}
+
 	return
 }
 
@@ -149,10 +171,10 @@ func parseArrayValue(value string, typification bool, isLike bool) (string, bool
 }
 
 // FillQueryParam Обрабатывает пришедшие значения и заполняет структура QueryParam
-func (qp *QueryParam) FillQueryParam(key, sign, value string) (err error) {
+func (qp *QueryParam) FillQueryParam(key string, keys []string, sign, value string) (err error) {
 	ok := false
 	qp.Sign = sign
-	qp.Key = key
+	qp.KeyArray = keys
 
 	// Проверка на ANY(ARRAY[]) или ALL(ARRAY[])
 	_type, _value, isArray := isArrayOperation(value)
