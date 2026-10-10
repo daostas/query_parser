@@ -32,7 +32,7 @@ func QueryFormat(key, value string) (qp QueryParam, err error) {
 	// По умолчанию ставим знак равно
 	sign := "="
 	// Доступные на данный момент функции
-	r := regexp.MustCompile(`^(\w+|\[\s*\w+(?:\s*,\s*\w+)*\s*\])\[(>|<|>-|<-|!|<>|~\*|~|!~\*|!~|\+|!\+|!%|%|!:|:|like|not_like|between|not_between|similar_to|not_similar_to)\]$`)
+	r := regexp.MustCompile(`^(\*|\w+|\[\s*\w+(?:\s*,\s*\w+)*\s*\])\[(>|<|>-|<-|!|<>|~\*|~|!~\*|!~|\+|!\+|!%|%|!:|:|like|not_like|between|not_between|similar_to|not_similar_to)\]$`)
 	if r.MatchString(key) {
 		matches := r.FindStringSubmatch(key)
 		// Достаем знак, который пришел в query параметрах
