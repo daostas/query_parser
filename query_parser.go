@@ -37,7 +37,9 @@ func QueryFormat(key, value string) (qp QueryParam, err error) {
 		matches := r.FindStringSubmatch(key)
 		// Достаем знак, который пришел в query параметрах
 		keys = strings.Split(strings.Trim(matches[1], " []"), ",")
-		sign = matches[2]
+		if matches[2] != "" {
+			sign = matches[2]
+		}
 		// Убираем найденный знак из ключа
 		key = r.ReplaceAllString(key, "")
 		// Обработка знака на валидные для sql запроса в базу PostgreSql
